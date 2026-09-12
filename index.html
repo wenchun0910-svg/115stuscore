@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>學生成績查詢系統 | 和風</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'wabi-bg': '#F4F1EA',
+                        'matcha': '#8A9A5B',
+                        'sakura': '#F1C0C9',
+                        'urushi': '#4A2511',
+                        'sumi': '#2C2A29',
+                        'shoubu': '#6B4E71'
+                    },
+                    fontFamily: {
+                        'serif': ['"Noto Serif TC"', 'serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Noto Serif TC', serif;
+            background-color: #F4F1EA;
+            background-image: url('https://www.transparenttextures.com/patterns/rice-paper.png');
+            color: #2C2A29;
+        }
+        .shoji-panel {
+            background-color: rgba(255, 255, 255, 0.85);
+            border: 1px solid #D1C7B7;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), inset 0 0 20px rgba(209, 199, 183, 0.2);
+        }
+        table { border-collapse: separate; border-spacing: 0; }
+        th, td { border: 1px solid #E5E0D8; }
+        th { background-color: #8A9A5B; color: white; font-weight: 400; letter-spacing: 0.05em; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #F4F1EA; }
+        ::-webkit-scrollbar-thumb { background: #D1C7B7; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #8A9A5B; }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 sm:p-8">
+
+    <div id="toast" class="fixed top-5 left-1/2 transform -translate-x-1/2 bg-urushi text-white px-6 py-3 rounded shadow-lg transition-opacity duration-300 opacity-0 pointer-events-none z-50">
+        訊息提示
+    </div>
+
+    <!-- 登入畫面 -->
+    <div id="login-view" class="shoji-panel rounded-lg p-8 w-full max-w-md text-center transition-all duration-500">
+        <div class="mb-8">
+            <h1 class="text-3xl text-urushi font-bold mb-2 tracking-widest">成績案內</h1>
+            <p class="text-sm text-gray-500">學生成績查詢系統</p>
+            <div class="h-0.5 w-16 bg-matcha mx-auto mt-4"></div>
+        </div>
+        
+        <form id="login-form" class="space-y-6">
+            <div>
+                <input type="text" id="student-id" required placeholder="學號" class="w-full px-4 py-3 bg-transparent border-b-2 border-gray-300 focus:border-matcha focus:outline-none transition-colors text-center text-lg">
+            </div>
+            <div>
+                <input type="password" id="password" required placeholder="密碼" class="w-full px-4 py-3 bg-transparent border-b-2 border-gray-300 focus:border-matcha focus:outline-none transition-colors text-center text-lg">
+            </div>
+            <button type="submit" class="w-full bg-urushi hover:bg-matcha text-white py-3 rounded transition-colors tracking-widest text-lg mt-4">登入</button>
+        </form>
+    </div>
+
+    <!-- 主畫面 -->
+    <div id="main-view" class="hidden w-full max-w-6xl space-y-6 transition-all duration-500">
+        <div class="shoji-panel rounded-lg p-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 bg-matcha rounded-full flex items-center justify-center text-white text-xl">
+                    <span id="user-avatar">生</span>
+                </div>
+                <div>
+                    <h2 class="text-xl font-bold text-urushi"><span id="display-name">使用者</span> 同學，您好</h2>
+                    <p class="text-sm text-gray-500">學號: <span id="display-id">000000</span></p>
+                </div>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                <select id="exam-select" class="px-4 py-2 border border-gray-300 rounded bg-white focus:outline-none focus:border-matcha text-urushi">
+                    <option value="">載入中...</option>
+                </select>
+                <div class="flex gap-2">
+                    <button onclick="showChangePassword()" class="px-4 py-2 border border-urushi text-urushi hover:bg-urushi hover:text-white rounded transition-colors text-sm">更改密碼</button>
+                    <button onclick="logout()" class="px-4 py-2 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded transition-colors text-sm">登出</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="loading-state" class="hidden text-center py-12 shoji-panel rounded-lg">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-matcha mx-auto"></div>
+            <p class="mt-4 text-gray-500 tracking-widest">成績讀取中...</p>
+        </div>
+
+        <div id="grades-content" class="hidden space-y-6">
+            <!-- 個人成績表 (動態生成) -->
+            <div class="shoji-panel rounded-lg p-1 sm:p-6 overflow-x-auto">
+                <h3 class="text-lg font-bold text-urushi mb-4 pl-2 border-l-4 border-matcha">個人成績明細</h3>
+                <table class="w-full text-sm text-center">
+                    <thead id="personal-grades-head">
+                        <!-- 表頭將從 GAS 動態載入 -->
+                    </thead>
+                    <tbody id="personal-grades-body" class="bg-white">
+                        <!-- 內容將從 GAS 動態載入 -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 分析表 (動態生成) -->
+            <div class="shoji-panel rounded-lg p-1 sm:p-6 overflow-x-auto">
+                <h3 class="text-lg font-bold text-urushi mb-4 pl-2 border-l-4 border-shoubu">各科評量分析 (含組距)</h3>
+                <table class="w-full text-sm text-center">
+                    <thead>
+                        <tr class="bg-shoubu text-white">
+                            <th class="py-2 px-2 bg-shoubu whitespace-nowrap">科目</th>
+                            <th class="py-2 px-2 bg-shoubu whitespace-nowrap">平均</th>
+                            <th class="py-2 px-2 bg-shoubu whitespace-nowrap">高標</th>
+                            <th class="py-2 px-2 bg-shoubu whitespace-nowrap">100分</th>
+                            <th class="py-2 px-2 bg-shoubu whitespace-nowrap">90-99分</th>
+                            <th class="py-2 px-2 bg-shoubu whitespace-nowrap">80-89分</th>
+                            <th class="py-2 px-2 bg-shoubu whitespace-nowrap">70-79分</th>
+                            <th class="py-2 px-2 bg-shoubu whitespace-nowrap">60-69分</th>
+                            <th class="py-2 px-2 bg-shoubu whitespace-nowrap">60分以下</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stats-grades-body" class="bg-white">
+                        <!-- 內容將從 GAS 動態載入 -->
+                    </tbody>
+                </table>
+                <p class="text-xs text-gray-500 mt-2 text-right">* 高標定義：該科前50%學生的平均分數</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 更改密碼彈窗 -->
+    <div id="password-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40">
+        <div class="shoji-panel rounded-lg p-8 w-full max-w-sm">
+            <h2 class="text-xl font-bold text-urushi mb-4">更改密碼</h2>
+            <div class="space-y-4">
+                <input type="password" id="old-pw" placeholder="原密碼" class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-matcha">
+                <input type="password" id="new-pw" placeholder="新密碼" class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-matcha">
+                <input type="password" id="new-pw-confirm" placeholder="確認新密碼" class="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-matcha">
+                <div class="flex gap-2 mt-6">
+                    <button onclick="hideChangePassword()" class="w-1/2 px-4 py-2 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded transition-colors">取消</button>
+                    <button onclick="submitChangePassword()" class="w-1/2 px-4 py-2 bg-matcha text-white hover:bg-urushi rounded transition-colors">確認修改</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 【請確認這裡放的是你最新的 GAS 網址】
+        const GAS_URL = "https://script.google.com/macros/s/你的應用程式ID/exec"; 
+        let currentUser = null;
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.remove('opacity-0');
+            setTimeout(() => { toast.classList.add('opacity-0'); }, 3000);
+        }
+
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('student-id').value.trim();
+            const pw = document.getElementById('password').value.trim();
+            const btn = e.target.querySelector('button');
+            
+            btn.textContent = "登入中...";
+            btn.disabled = true;
+
+            try {
+                const res = await fetch(`${GAS_URL}?action=login&id=${encodeURIComponent(id)}&pw=${encodeURIComponent(pw)}`, {
+                    method: 'GET',
+                    mode: 'cors',
+                    redirect: 'follow'
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    currentUser = { id: id, name: data.name };
+                    loginSuccess();
+                } else {
+                    throw new Error(data.message || '登入失敗');
+                }
+            } catch (err) {
+                showToast(err.message);
+            } finally {
+                btn.textContent = "登入";
+                btn.disabled = false;
+            }
+        });
+
+        async function loginSuccess() {
+            document.getElementById('login-view').classList.add('hidden');
+            document.getElementById('main-view').classList.remove('hidden');
+            document.getElementById('display-name').textContent = currentUser.name;
+            document.getElementById('display-id').textContent = currentUser.id;
+            document.getElementById('user-avatar').textContent = currentUser.name.charAt(0);
+            await loadExams();
+        }
+
+        function logout() {
+            currentUser = null;
+            document.getElementById('main-view').classList.add('hidden');
+            document.getElementById('grades-content').classList.add('hidden');
+            document.getElementById('login-view').classList.remove('hidden');
+            document.getElementById('login-form').reset();
+            document.getElementById('exam-select').innerHTML = '<option value="">載入中...</option>';
+        }
+
+        async function loadExams() {
+            try {
+                const res = await fetch(`${GAS_URL}?action=getExams`, { method: 'GET', mode: 'cors', redirect: 'follow' });
+                const data = await res.json();
+                
+                if(data.success) {
+                    const select = document.getElementById('exam-select');
+                    select.innerHTML = '<option value="" disabled selected>請選擇評量...</option>';
+                    data.exams.forEach(exam => {
+                        const opt = document.createElement('option');
+                        opt.value = exam;
+                        opt.textContent = exam;
+                        select.appendChild(opt);
+                    });
+                    select.addEventListener('change', (e) => loadGrades(e.target.value));
+                    if(data.exams.length > 0) {
+                        select.value = data.exams[0];
+                        loadGrades(data.exams[0]);
+                    }
+                }
+            } catch (err) { showToast('載入評量清單失敗'); }
+        }
+
+        async function loadGrades(examName) {
+            if (!examName) return;
+            document.getElementById('grades-content').classList.add('hidden');
+            document.getElementById('loading-state').classList.remove('hidden');
+
+            try {
+                const res = await fetch(`${GAS_URL}?action=getGrades&exam=${encodeURIComponent(examName)}&id=${encodeURIComponent(currentUser.id)}`, {
+                    method: 'GET', mode: 'cors', redirect: 'follow'
+                });
+                const data = await res.json();
+                
+                if(data.success) {
+                    // 動態渲染成績與統計
+                    renderPersonalGrades(data.headers, data.personal);
+                    renderStats(data.stats);
+                    document.getElementById('loading-state').classList.add('hidden');
+                    document.getElementById('grades-content').classList.remove('hidden');
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (err) {
+                document.getElementById('loading-state').classList.add('hidden');
+                showToast('讀取成績失敗：' + err.message);
+            }
+        }
+
+        // 動態生成個人成績表
+        function renderPersonalGrades(headers, data) {
+            const thead = document.getElementById('personal-grades-head');
+            const tbody = document.getElementById('personal-grades-body');
+
+            // 1. 動態建立表頭 (根據字眼自動上色)
+            let thHtml = '<tr>';
+            headers.forEach(h => {
+                let thClass = "py-2 px-2 whitespace-nowrap"; // whitespace-nowrap 避免字被擠壓
+                if (h.includes('平時')) thClass += " bg-opacity-80";
+                if (h.includes('總分') || h.includes('平均')) thClass += " bg-urushi";
+                thHtml += `<th class="${thClass}">${h}</th>`;
+            });
+            thHtml += '</tr>';
+            thead.innerHTML = thHtml;
+
+            // 2. 動態填入成績 (對應表頭)
+            let tdHtml = '<tr class="hover:bg-gray-50 transition-colors">';
+            headers.forEach(h => {
+                let val = (data[h] !== undefined && data[h] !== '') ? data[h] : '-';
+                let tdClass = "py-3 px-2 whitespace-nowrap";
+                if (h === '姓名' || h.includes('定期')) tdClass += " font-bold text-urushi";
+                else if (h.includes('平時')) tdClass += " text-gray-500";
+                else if (h.includes('總分') || h.includes('平均')) tdClass += " font-bold text-red-700";
+                tdHtml += `<td class="${tdClass}">${val}</td>`;
+            });
+            tdHtml += '</tr>';
+            tbody.innerHTML = tdHtml;
+        }
+
+        // 動態生成組距分析表
+        function renderStats(stats) {
+            const tbody = document.getElementById('stats-grades-body');
+            let html = '';
+            
+            // 讀取後端回傳的動態科目
+            for (let sub in stats) {
+                const s = stats[sub];
+                let displayName = sub.replace('定期', ''); // 若有定期字眼，移除以保持簡潔
+                html += `
+                    <tr class="hover:bg-gray-50 transition-colors border-b">
+                        <td class="py-2 px-2 font-bold whitespace-nowrap">${displayName}</td>
+                        <td class="py-2 px-2 text-urushi font-bold">${s.avg}</td>
+                        <td class="py-2 px-2 text-matcha font-bold">${s.high}</td>
+                        <td class="py-2 px-2">${s.dist['100']} 人</td>
+                        <td class="py-2 px-2">${s.dist['90']} 人</td>
+                        <td class="py-2 px-2">${s.dist['80']} 人</td>
+                        <td class="py-2 px-2">${s.dist['70']} 人</td>
+                        <td class="py-2 px-2">${s.dist['60']} 人</td>
+                        <td class="py-2 px-2 text-red-500">${s.dist['under60']} 人</td>
+                    </tr>
+                `;
+            }
+            tbody.innerHTML = html;
+        }
+
+        function showChangePassword() { document.getElementById('password-modal').classList.remove('hidden'); }
+        function hideChangePassword() {
+            document.getElementById('password-modal').classList.add('hidden');
+            document.getElementById('old-pw').value = '';
+            document.getElementById('new-pw').value = '';
+            document.getElementById('new-pw-confirm').value = '';
+        }
+        
+        async function submitChangePassword() {
+            const oldPw = document.getElementById('old-pw').value;
+            const newPw = document.getElementById('new-pw').value;
+            const confirmPw = document.getElementById('new-pw-confirm').value;
+
+            if (!oldPw || !newPw || !confirmPw) return showToast('請填寫完整資訊');
+            if (newPw !== confirmPw) return showToast('新密碼與確認密碼不符');
+
+            try {
+                const res = await fetch(GAS_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'changePassword', id: currentUser.id, oldPw: oldPw, newPw: newPw })
+                });
+                const data = await res.json();
+                if(data.success) {
+                    showToast('密碼修改成功');
+                    hideChangePassword();
+                } else { throw new Error(data.message); }
+            } catch (err) { showToast(err.message); }
+        }
+    </script>
+</body>
+</html>
